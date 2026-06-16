@@ -20,23 +20,27 @@ func (c Client) GetLocationAreas(pageURL *string) (RespShallowLocations, error) 
 	if pageURL != nil {
 		url = *pageURL
 	}
+	rawBytes, ok := c.cache.Get(url)
 
-	res, err := c.httpClient.Get(url)
+	if !ok {
+		res, err := c.httpClient.Get(url)
+		if err != nil {
+			return RespShallowLocations{}, err
+		}
+		defer res.Body.Close()
+
+		rawBytes, err = io.ReadAll(res.Body)
+		if err != nil {
+			return RespShallowLocations{}, err
+		}
+		c.cache.Add(url, rawBytes)
+	}
+
+	var decoded RespShallowLocations
+	err := json.Unmarshal(rawBytes, &decoded)
 	if err != nil {
 		return RespShallowLocations{}, err
 	}
-	defer res.Body.Close()
 
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return RespShallowLocations{}, err
-	}
-
-	var data RespShallowLocations
-	err = json.Unmarshal(body, &data)
-	if err != nil {
-		return RespShallowLocations{}, err
-	}
-
-	return data, nil
+	return decoded, nil
 }
