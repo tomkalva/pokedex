@@ -2,7 +2,9 @@ package pokeapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"net/http"
 )
 
 type RespShallowLocations struct {
@@ -13,6 +15,19 @@ type RespShallowLocations struct {
 		Name string `json:"name"`
 		URL  string `json:"url"`
 	} `json:"results"`
+}
+
+type DetailedResponse struct {
+	PokemonEncounters []struct {
+		Pokemon struct {
+			Name string `json:"name"`
+		} `json:"pokemon"`
+	} `json:"pokemon_encounters"`
+}
+
+type PokemonResponse struct {
+	Name           string `json:"name"`
+	BaseExperience int    `json:"base_experience"`
 }
 
 func (c Client) GetLocationAreas(pageURL *string) (RespShallowLocations, error) {
@@ -29,6 +44,10 @@ func (c Client) GetLocationAreas(pageURL *string) (RespShallowLocations, error) 
 		}
 		defer res.Body.Close()
 
+		if res.StatusCode != http.StatusOK {
+			return RespShallowLocations{}, fmt.Errorf("failed to fetch location areas")
+		}
+
 		rawBytes, err = io.ReadAll(res.Body)
 		if err != nil {
 			return RespShallowLocations{}, err
@@ -40,6 +59,65 @@ func (c Client) GetLocationAreas(pageURL *string) (RespShallowLocations, error) 
 	err := json.Unmarshal(rawBytes, &decoded)
 	if err != nil {
 		return RespShallowLocations{}, err
+	}
+
+	return decoded, nil
+}
+
+func (c Client) GetLocationArea(name string) (DetailedResponse, error) {
+	url := "https://pokeapi.co/api/v2/location-area/" + name + "/"
+
+	rawBytes, ok := c.cache.Get(url)
+
+	if !ok {
+		res, err := c.httpClient.Get(url)
+		if err != nil {
+			return DetailedResponse{}, err
+		}
+		defer res.Body.Close()
+
+		if res.StatusCode != http.StatusOK {
+			return DetailedResponse{}, fmt.Errorf("location area not found")
+		}
+
+		rawBytes, err = io.ReadAll(res.Body)
+		if err != nil {
+			return DetailedResponse{}, err
+		}
+		c.cache.Add(url, rawBytes)
+	}
+
+	var decoded DetailedResponse
+	err := json.Unmarshal(rawBytes, &decoded)
+	if err != nil {
+		return DetailedResponse{}, err
+	}
+
+	return decoded, nil
+}
+
+func (c Client) GetPokemonStats(name string) (PokemonResponse, error) {
+	url := "https://pokeapi.co/api/v2/pokemon/" + name + "/"
+
+	res, err := c.httpClient.Get(url)
+	if err != nil {
+		return PokemonResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return PokemonResponse{}, fmt.Errorf("pokemon not found")
+	}
+
+	rawBytes, err := io.ReadAll(res.Body)
+	if err != nil {
+		return PokemonResponse{}, err
+	}
+
+	var decoded PokemonResponse
+	err = json.Unmarshal(rawBytes, &decoded)
+	if err != nil {
+		return PokemonResponse{}, err
 	}
 
 	return decoded, nil

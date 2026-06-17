@@ -13,13 +13,16 @@ type config struct {
 	pokeapiClient pokeapi.Client
 	nextURL       *string
 	previousURL   *string
+	pokedex       map[string]pokeapi.PokemonResponse
 }
 
 func startRepl(cfg *config) {
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		fmt.Print("Pokedex > ")
-		scanner.Scan()
+		if !scanner.Scan() {
+			break
+		}
 		input := scanner.Text()
 		words := cleanInput(input)
 
@@ -27,16 +30,21 @@ func startRepl(cfg *config) {
 			fmt.Print("No input given\n")
 			continue
 		}
+		commandName := words[0]
+		args := words[1:]
 
-		cmd, ok := getCommands()[words[0]]
+		cmd, ok := getCommands()[commandName]
 		if !ok {
 			fmt.Println("Unknown command")
 		} else {
-			err := cmd.callback(cfg)
+			err := cmd.callback(cfg, args)
 			if err != nil {
 				fmt.Println(err)
 			}
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Println("error reading input:", err)
 	}
 }
 
