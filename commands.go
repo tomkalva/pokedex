@@ -45,6 +45,11 @@ func getCommands() map[string]cliCommand {
 			description: "Catch a Pokemon and add them to the Pokedex",
 			callback:    commandCatch,
 		},
+		"inspect": {
+			name:        "inspect",
+			description: "Prints the name, height, weight, stats and type(s) of a Pokemon",
+			callback:    commandInspect,
+		},
 	}
 	return commands
 }
@@ -124,19 +129,50 @@ func commandCatch(cfg *config, args []string) error {
 
 	pokemonName := args[0]
 
-	fmt.Printf("Throwing a Pokeball at %s...\n", pokemonName)
-
 	pokemon, err := cfg.pokeapiClient.GetPokemonStats(pokemonName)
 	if err != nil {
 		return err
 	}
-
-	roll := rand.Intn(pokemon.BaseExperience)
-	if roll < 100 {
-		fmt.Printf("%s was caught!\n", pokemonName)
-		cfg.pokedex[pokemonName] = pokemon
+	_, alreadyCaught := cfg.pokedex[pokemonName]
+	if alreadyCaught {
+		fmt.Printf("%s is already caught!\n", pokemonName)
 	} else {
-		fmt.Printf("%s escaped!\n", pokemonName)
+		fmt.Printf("Throwing a Pokeball at %s...\n", pokemonName)
+		roll := rand.Intn(pokemon.BaseExperience)
+		if roll < 100 {
+			fmt.Printf("%s was caught!\n", pokemonName)
+			cfg.pokedex[pokemonName] = pokemon
+		} else {
+			fmt.Printf("%s escaped!\n", pokemonName)
+		}
+	}
+	return nil
+}
+
+func commandInspect(cfg *config, args []string) error {
+	if len(args) == 0 {
+		return errors.New("Pokemon name required")
+	}
+
+	pokemonName := args[0]
+
+	_, isCaught := cfg.pokedex[pokemonName]
+	if isCaught == false {
+		fmt.Println("you have not caught that pokemon")
+	} else {
+		fmt.Printf("Name: %v\n", cfg.pokedex[pokemonName].Name)
+		fmt.Printf("Height: %v\n", cfg.pokedex[pokemonName].Height)
+		fmt.Printf("Weight: %v\n", cfg.pokedex[pokemonName].Weight)
+
+		fmt.Println("Stats:")
+		for _, s := range cfg.pokedex[pokemonName].Stats {
+			fmt.Printf("  -%v: %v\n", s.Stat.Name, s.BaseStat)
+		}
+
+		fmt.Println("Types:")
+		for _, t := range cfg.pokedex[pokemonName].Types {
+			fmt.Printf("  - %v\n", t.Type.Name)
+		}
 	}
 
 	return nil
